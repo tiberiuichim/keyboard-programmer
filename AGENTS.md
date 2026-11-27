@@ -366,10 +366,18 @@ boards are garbage (`c̪USB Keyboardȉ`), so the name on the box tells you nothi
 
 ### Licensing
 
-`ch57x-keyboard-tool` is MIT; keep its notice if you redistribute the binary
-that `./pad build` produces. `WonKey` is BlueOak-1.0.0, `macropad-rebind` MIT.
-The scripts in *this* repo carry no licence header — add a `LICENSE` before
-publishing if it matters to you.
+This repo is **MIT** (`LICENSE`, Copyright (c) 2026 Tiberiu Ichim).
+
+Two things here are *derived from* upstream and therefore carry upstream's
+notice too, and must keep it if you redistribute:
+
+* `tools/keytables.py` — generated from upstream's Rust enums
+  (Copyright 2023 Mikhail Trishchenkov, MIT; notice in the file header)
+* `tests/golden/*.hex` — byte streams captured from upstream's output
+  (full notice in `tests/golden/NOTICE`)
+
+`WonKey` is BlueOak-1.0.0 and `macropad-rebind` MIT; neither is used or
+redistributed here, they are only linked as alternatives.
 
 ---
 

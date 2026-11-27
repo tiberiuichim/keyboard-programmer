@@ -2,6 +2,11 @@
 # src/keyboard/mod.rs (WellKnownCode / MediaCode). Do not edit by hand.
 #
 # <repo>/build/src/ch57x/src/keyboard/mod.rs
+#
+# These tables are derived from upstream sources, MIT licensed:
+#   Copyright 2023 Mikhail Trishchenkov
+#   https://github.com/kriomant/ch57x-keyboard-tool
+# See tests/golden/NOTICE for the full upstream licence notice.
 
 KEYCODES = {
     '0'                   : 0x27,

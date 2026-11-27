@@ -66,6 +66,11 @@ def main():
         f.write("# src/keyboard/mod.rs (WellKnownCode / MediaCode). Do not edit by hand.\n")
         f.write("#\n")
         f.write("# %s\n" % src_path.replace(os.path.join(HERE, ".."), "<repo>"))
+        f.write("#\n")
+        f.write("# These tables are derived from upstream sources, MIT licensed:\n")
+        f.write("#   Copyright 2023 Mikhail Trishchenkov\n")
+        f.write("#   https://github.com/kriomant/ch57x-keyboard-tool\n")
+        f.write("# See tests/golden/NOTICE for the full upstream licence notice.\n")
         f.write("\nKEYCODES = {\n")
         for n in sorted(keys):
             f.write("    %-22r: 0x%02x,\n" % (n, keys[n]))

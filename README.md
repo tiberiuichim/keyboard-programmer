@@ -41,3 +41,12 @@ for the full list.
 * [`wimpysworld/WonKey`](https://github.com/wimpysworld/WonKey) (BlueOak-1.0.0)
   and [`jvspier/macropad-rebind`](https://github.com/jvspier/macropad-rebind)
   (MIT) — alternative tools for the same hardware family.
+
+## License
+
+MIT — see [LICENSE](LICENSE).
+
+`tools/keytables.py` and `tests/golden/*.hex` are derived from
+[`kriomant/ch57x-keyboard-tool`](https://github.com/kriomant/ch57x-keyboard-tool)
+(Copyright 2023 Mikhail Trishchenkov, MIT); upstream's notice is kept in the
+file header and in [`tests/golden/NOTICE`](tests/golden/NOTICE).
