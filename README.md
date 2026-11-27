@@ -1,17 +1,36 @@
 # keyboard-programmer
 
-Program the 3-key + 1-knob USB macropad (eMaj DBG05R3BM) without the vendor's
-Windows software.
+Program the 3-key + 1-knob USB macropad without the vendor's Windows software.
 
-```
-./pad status              # is it plugged in?
+The pad sold as ["AJIEQ" mini mechanical keyboard, 3 keys + 1 potentiometer](https://www.emag.ro/mini-tastatura-mecanica-cu-3-taste-si-1-potentiometru-tastatura-mecanica-programabila-ajieqaqr-iluminare-rgb-conectare-usb-type-c-protectie-anti-static-pentru-gaming-editare-video-photoshop-cad-modela/pd/DBG05R3BM/)
+(SKU `DBG05R3BM`) is really a generic **WCH CH57x "SayoDevice"-family**
+macropad, USB id `514c:8851`. It is reprogrammed by writing 64-byte vendor HID
+reports to interface 0, endpoint `0x02`. No vendor software, no driver, no
+daemon.
+
+```bash
+./pad build                   # once — fetches and builds the programmer
+./pad status                  # is it plugged in?
 ./pad program config/media.yaml
-./pad monitor 40          # press the keys, watch it verify
+./pad monitor 40              # press the keys, watch it verify
 ```
 
-Start with **[AGENTS.md](AGENTS.md)** — it documents the device, the mapping
-file format, the hardware limitations, the raw HID protocol, and the exact
-workflow to follow.
+Start with **[AGENTS.md](AGENTS.md)** — device reference, mapping-file format,
+hardware limitations, the raw byte-level protocol, and the workflow to follow.
 
-Nothing here needs the vendor software, a driver, or a daemon. `./pad udev`
-(one time, needs sudo) removes the need for sudo/Docker afterwards.
+Run `./pad udev` once (needs sudo) to stop needing sudo/Docker afterwards.
+
+## Credits
+
+This repo is a wrapper plus field notes. The reverse engineering is other
+people's work — see [AGENTS.md §10](AGENTS.md#10-where-this-information-came-from)
+for the full list.
+
+* [`kriomant/ch57x-keyboard-tool`](https://github.com/kriomant/ch57x-keyboard-tool)
+  (MIT) — the programmer this wraps. Build from **master**, not from the
+  `v1.7.0` tag: support for `514c:8851` landed in
+  [PR #188](https://github.com/kriomant/ch57x-keyboard-tool/pull/188) and is in
+  no release yet.
+* [`wimpysworld/WonKey`](https://github.com/wimpysworld/WonKey) (BlueOak-1.0.0)
+  and [`jvspier/macropad-rebind`](https://github.com/jvspier/macropad-rebind)
+  (MIT) — alternative tools for the same hardware family.

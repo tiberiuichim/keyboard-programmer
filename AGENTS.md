@@ -10,7 +10,8 @@ the device.
 
 | | |
 |---|---|
-| Product | "AJIEQ" mini mechanical keyboard, 3 keys + 1 rotary encoder (eMaj listing DBG05R3BM) |
+| Product | "AJIEQ" mini mechanical keyboard, 3 keys + 1 rotary encoder |
+| Vendor listing | https://www.emag.ro/mini-tastatura-mecanica-cu-3-taste-si-1-potentiometru-tastatura-mecanica-programabila-ajieqaqr-iluminare-rgb-conectare-usb-type-c-protectie-anti-static-pentru-gaming-editare-video-photoshop-cad-modela/pd/DBG05R3BM/ (SKU `DBG05R3BM`) |
 | Real identity | generic **WCH CH57x "SayoDevice"-family** macropad, not a real keyboard |
 | USB ID | **`514c:8851`** (vendor string is garbage: `c̪USB Keyboardȉ`) |
 | Speed | Full Speed (12 Mbit). If `speed` reads 1.5, the cable is charge-only. |
@@ -237,6 +238,8 @@ Rebuild with `./pad build` (needs Docker; ~1 minute). The build writes into
 Upstream issue worth knowing: <https://github.com/kriomant/ch57x-keyboard-tool/issues/196>
 reports the crash on this PID for people using the tagged release.
 
+Full list of upstream sources and credits: [§10](#10-where-this-information-came-from).
+
 ---
 
 ## 8. Troubleshooting
@@ -284,3 +287,59 @@ capture/                     saved monitor/capture logs       (local, gitignored
 Because `config/applied/`, `config/.current` and `capture/` are gitignored, a
 fresh clone does not know what is on your physical pad. After cloning, run
 `./pad monitor` and re-derive it, or copy those directories over by hand.
+
+---
+
+## 10. Where this information came from
+
+The reverse engineering here was done by other people. This repo is a wrapper
+plus field notes. Pointers, in the order they matter:
+
+### The programmer — [`kriomant/ch57x-keyboard-tool`](https://github.com/kriomant/ch57x-keyboard-tool) (MIT, Rust)
+
+Everything in §3 and §6 of this file is derived from its source.
+
+| What | Where |
+|---|---|
+| Mapping-file format, full action vocabulary | [`README.md`](https://github.com/kriomant/ch57x-keyboard-tool/blob/master/README.md), [`doc/actions.md`](https://github.com/kriomant/ch57x-keyboard-tool/blob/master/doc/actions.md), [`example-mapping.yaml`](https://github.com/kriomant/ch57x-keyboard-tool/blob/master/example-mapping.yaml) |
+| The byte-level protocol in §6 (driver for our `ch57x-1` model) | [`src/keyboard/k884x.rs`](https://github.com/kriomant/ch57x-keyboard-tool/blob/master/src/keyboard/k884x.rs) |
+| Supported-device table, incl. `(Ch57x_1, 0x514c, 0x8851, endpoint 0x02)` | [`src/config.rs`](https://github.com/kriomant/ch57x-keyboard-tool/blob/master/src/config.rs) |
+| **PR [#188](https://github.com/kriomant/ch57x-keyboard-tool/pull/188)** — added `514c:8851`, merged 2026-07-14 | *the reason we build from master, not from a tag* |
+| **PR [#190](https://github.com/kriomant/ch57x-keyboard-tool/pull/190)** — added `screenbrightness*` / `webpage*` media codes | used by `config/media.yaml`; its merge commit is our pinned commit |
+| PR [#169](https://github.com/kriomant/ch57x-keyboard-tool/pull/169) — earlier attempt at the same PID (closed, unmerged) | explains endpoint `0x02` vs the usual `0x04` |
+| PR [#189](https://github.com/kriomant/ch57x-keyboard-tool/pull/189) — endpoint auto-detection (closed, unmerged) | context for `--endpoint-address` |
+| Issue [#162](https://github.com/kriomant/ch57x-keyboard-tool/issues/162) | first report of this PID; shows the `unsupported device` panic |
+| Issue [#196](https://github.com/kriomant/ch57x-keyboard-tool/issues/196) | the same panic on the same PID, using the **v1.7.0 release binary** — this is exactly the trap §7 warns about |
+| Pinned build | commit [`bdbffca`](https://github.com/kriomant/ch57x-keyboard-tool/commit/bdbffca368f2084fbd111bc64463b881cd7c8fee) |
+
+### Other tools for the same hardware (not used here, worth knowing)
+
+* [`wimpysworld/WonKey`](https://github.com/wimpysworld/WonKey) (BlueOak-1.0.0) —
+  "Macropad configuration tool for Linux". Handles CH57x **and** SayoDevice
+  pads under one CLI, and additionally has vendor-firmware update and
+  bootloader-recovery paths. Worth a look if you ever want to touch firmware
+  rather than key maps.
+* [`jvspier/macropad-rebind`](https://github.com/jvspier/macropad-rebind) (MIT) —
+  same class of device, driven from a browser/WebUSB context. Its issue #9
+  documents yet another pad layout variant.
+
+### How the device was identified
+
+Searching GitHub issues for the literal USB id `514c:8851` is what pinned this
+down as a CH57x pad. **Do that first next time** — the vendor strings on these
+boards are garbage (`c̪USB Keyboardȉ`), so the name on the box tells you nothing.
+
+### Reference tables
+
+* HID Usage Tables — <https://www.usb.org/sites/default/files/documents/hut1_12v2.pdf>
+  * Section 10 (Keyboard/Keypad) — needed for raw `"<100>"` style codes and the
+    `code` byte in §6
+  * Section 15 (Consumer Page) — the media usages listed in §6
+    (`0x0e9` volume up, `0x0ea` volume down, `0x0e2` mute, …)
+
+### Licensing
+
+`ch57x-keyboard-tool` is MIT; keep its notice if you redistribute the binary
+that `./pad build` produces. `WonKey` is BlueOak-1.0.0, `macropad-rebind` MIT.
+The scripts in *this* repo carry no licence header — add a `LICENSE` before
+publishing if it matters to you.
