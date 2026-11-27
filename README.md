@@ -9,11 +9,18 @@ reports to interface 0, endpoint `0x02`. No vendor software, no driver, no
 daemon.
 
 ```bash
-./pad build                   # once — fetches and builds the programmer
 ./pad status                  # is it plugged in?
 ./pad program config/media.yaml
 ./pad monitor 40              # press the keys, watch it verify
+./pad selftest                # offline regression test, no pad needed
+./pad doctor                  # what this checkout can do without network
 ```
+
+There are two interchangeable programmers: `tools/program.py` (Python 3 stdlib
+only, committed, no upstream needed) and the upstream Rust binary built by
+`./pad build` (optional; needed only for mouse actions, `{delay()}` and RGB).
+`./pad program` picks automatically. The Python one is byte-identical to
+upstream and is what keeps this repo working if upstream disappears.
 
 Start with **[AGENTS.md](AGENTS.md)** — device reference, mapping-file format,
 hardware limitations, the raw byte-level protocol, and the workflow to follow.

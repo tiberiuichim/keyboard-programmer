@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Decode raw HID reports straight off the pad's hidraw nodes.
 
-hidraw9 = interface 1 (keyboard/mouse/consumer reports)
-hidraw8 = interface 0 (vendor/config channel)
+Node numbers are reassigned on every replug, so they are discovered at
+runtime from sysfs: the node whose parent USB interface is ':1.0' is the vendor
+channel; the other carries the keyboard/mouse/consumer reports.
 """
 import os, sys, glob, time, select, struct
 
@@ -64,39 +65,44 @@ def main():
     dur = int(sys.argv[1]) if len(sys.argv) > 1 else 120
     nodes = []
     for h in sorted(glob.glob("/dev/hidraw*")):
+        sysfs = "/sys/class/hidraw/%s" % os.path.basename(h)
         try:
-            ue = open("/sys/class/hidraw/%s/device/uevent" % os.path.basename(h)).read()
+            ue = open("%s/device/uevent" % sysfs).read()
         except OSError:
             continue
         if "514C" not in ue or "8851" not in ue:
             continue
+        # interface 0 is the vendor/programming channel. The node number itself
+        # is reassigned on every replug, so never key off it.
         try:
-            nodes.append((os.open(h, os.O_RDONLY), h))
-        except OSError as e:
-            print("cannot open", h, e)
-    for _, h in nodes:
-        print("watching", h)
+            iface = os.path.basename(os.path.realpath("%s/device/.." % sysfs))
+        except OSError:
+            iface = ""
+        try:
+            nodes.append((os.open(h, os.O_RDONLY), h, iface.endswith(":1.0")))
+        except OSError:
+            print("cannot open", h)
+    for _, h, vendor in nodes:
+        print("watching %s (%s)" % (h, "vendor channel" if vendor else "reports"))
     print("\n>> Press the 3 keys, rotate the knob both ways, press the knob,")
     print(">> and press the side layer button. Listening %ds...\n" % dur)
 
     end = time.time() + dur
     while time.time() < end:
-        r, _, _ = select.select([f for f, _ in nodes], [], [], 0.2)
+        r, _, _ = select.select([f for f, _, _ in nodes], [], [], 0.2)
         for fd in r:
             try:
                 pkt = os.read(fd, 128)
             except OSError:
                 continue
-            src = next(p for f, p in nodes if f == fd)
+            src, vendor = next((p, v) for f, p, v in nodes if f == fd)
             if not pkt:
                 continue
             rid, body = pkt[0], pkt[1:]
-            if src.endswith("hidraw8"):
+            if vendor:
                 if body.strip(b"\x00"):
                     print("  [vendor] %s" % body[:16].hex())
                 continue
             print("  [%s] %s" % (src, decode(rid, body)))
     print("\ndone")
-
-
 main()

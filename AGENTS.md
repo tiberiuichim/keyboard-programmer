@@ -44,12 +44,32 @@ you can bind mouse clicks and wheel ticks to keys.
 ./pad keys                   every key / modifier / media name you may use
 ./pad validate FILE.yaml     check a mapping file without touching the device
 ./pad program FILE.yaml      validate + flash + record as the active mapping
+./pad program --py FILE.yaml force the dependency-free python programmer
+./pad program --rust FILE.yaml  force the upstream rust programmer
+./pad bytes FILE.yaml        print the exact bytes that would be sent
+./pad selftest               offline regression test (no pad, no network)
+./pad doctor                 what this checkout can and cannot do offline
 ./pad restore                re-flash config/factory-default.yaml (stock a/b/c)
 ./pad monitor [SECS]         decode what the pad is actually sending (default 60)
 ./pad led LAYER "MODE"       set RGB, e.g. ./pad led 0 "backlight blue"
-./pad build                  rebuild the programmer from the pinned commit
+./pad build                  build the optional rust programmer
 ./pad udev                   install the udev rule (then no sudo/Docker needed)
 ```
+
+There are **two interchangeable programmers** in this repo:
+
+| | `tools/program.py` | `bin/ch57x-keyboard-tool` |
+|---|---|---|
+| Origin | written here, from the protocol in §6 | upstream `kriomant/ch57x-keyboard-tool` |
+| Needs | Python 3 stdlib only | Rust toolchain to build, `libusb` to run |
+| Committed? | **yes** | no (build artifact) |
+| Macros | keys, modifiers, sequences, media, `<NNN>` | everything, incl. mouse actions and `{delay()}` |
+| LED | not implemented | `./pad led` |
+| Verified | byte-identical to upstream, see §11 | — |
+
+`./pad program` uses the Rust one when it has been built, otherwise falls back
+to the Python one automatically. **The Python one is what keeps this repo
+usable if upstream disappears.**
 
 `./pad` auto-selects the transport: it runs the binary natively if
 `/dev/bus/usb/...` is writable, otherwise it falls back to a `--privileged`
@@ -142,9 +162,10 @@ guessing. It prints lines like:
 [/dev/hidraw9] NKRO LSHIFT A
 ```
 
-`hidraw9` = interface 1 (what the pad *does*), `hidraw8` = interface 0 (the
-vendor channel; it is normally silent — traffic there means something is
-reprogramming the pad).
+The monitor labels each node it opens, because node numbers are reassigned on
+every replug. The one tagged `(vendor channel)` is interface 0 — normally
+silent; traffic there means something is reprogramming the pad. The other one
+is interface 1, what the pad actually *does*.
 
 `tools/capture_events.py` is the evdev-level equivalent; prefer the hidraw one.
 
@@ -213,11 +234,11 @@ Each message is padded to 64 bytes and sent as its own packet.
 
 ---
 
-## 7. The programmer binary
+## 7. The optional Rust programmer
 
-`bin/ch57x-keyboard-tool` is **not committed** — it is a build artifact. Create
-it once with `./pad build` (needs Docker, ~1 minute); `./pad status` tells you
-if it is missing.
+`bin/ch57x-keyboard-tool` is **not committed** — it is a build artifact, and
+nothing in this repo requires it. Build it with `./pad build` (Docker, ~1 minute)
+if you want mouse actions, `{delay()}` or `./pad led`.
 
 It is [`kriomant/ch57x-keyboard-tool`](https://github.com/kriomant/ch57x-keyboard-tool)
 (MIT, Rust), built from a **pinned master commit**, see `tools/build-tool.sh`:
@@ -272,6 +293,11 @@ config/
   applied/                   every flash ever done, timestamped (local, gitignored)
   .current                   path of the last flashed file    (local, gitignored)
 tools/
+  program.py                 dependency-free programmer (stdlib only)
+  keytables.py               key/media name -> code tables (generated, committed)
+  gen-keytables.py           regenerates keytables.py from an upstream checkout
+  selftest.py                offline regression test
+  capture-golden.sh          re-capture tests/golden from the Rust programmer
   monitor_hidraw.py          decode raw HID reports off the pad  (./pad monitor)
   capture_events.py          evdev-level equivalent
   dump_usb.py                dump USB/HID descriptors from scratch
@@ -282,6 +308,7 @@ tools/
   Dockerfile.build           rust build image `kbbuild`
 build/src/ch57x              upstream checkout used for building (local, gitignored)
 capture/                     saved monitor/capture logs       (local, gitignored)
+tests/golden/*.hex           expected byte streams, captured from upstream
 ```
 
 Because `config/applied/`, `config/.current` and `capture/` are gitignored, a
@@ -343,3 +370,50 @@ boards are garbage (`c̪USB Keyboardȉ`), so the name on the box tells you nothi
 that `./pad build` produces. `WonKey` is BlueOak-1.0.0, `macropad-rebind` MIT.
 The scripts in *this* repo carry no licence header — add a `LICENSE` before
 publishing if it matters to you.
+
+---
+
+## 11. Self-containment: what survives if upstream vanishes
+
+`./pad doctor` prints this at a glance.
+
+**Committed and dependency-free — works with no network and no upstream:**
+
+* `tools/program.py` — Python 3 stdlib only. Parses the config, builds the §6
+  byte stream, writes it to the pad's interface-0 hidraw node.
+* `tools/keytables.py` — the 124 key names and 16 media names, generated from
+  upstream's Rust enums and **committed**, so regenerating it does not need a
+  checkout.
+* `tools/monitor_hidraw.py`, `tools/capture_events.py` — stdlib only.
+* `tests/golden/*.hex` — the exact byte streams the upstream Rust programmer
+  sends, captured off its `RUST_LOG=trace` output.
+* `AGENTS.md` §6 — the protocol itself, so the tool can be rewritten from
+  scratch if both the code and the goldens are lost.
+
+**Needs the network / upstream:**
+
+* `./pad build` — clones `kriomant/ch57x-keyboard-tool` and pulls crates.io.
+  Only needed for the Rust binary (mouse actions, `{delay()}`, `./pad led`).
+* `tools/Dockerfile` / `Dockerfile.build` — Docker Hub base images. Only needed
+  for the Docker fallback; if the udev rule is installed everything runs
+  natively with no Docker at all.
+
+**How the Python programmer is proven correct:**
+
+```
+python3 tools/selftest.py
+```
+
+No pad, no network. It unit-tests the YAML-subset and macro parsers, checks the
+key/media tables against the HID usage tables, checks the `to_key_id` mapping
+(buttons 1-based, knob 0 = 16/17/18), checks the 3×1+1knob modifier rule is
+enforced on limited boards and *not* on others — and then diffs the full byte
+stream for every `config/*.yaml` against `tests/golden/`.
+
+As of writing: **72/72 packets byte-identical to the upstream Rust programmer**
+for `config/media.yaml`, and the resulting pad behaviour was verified on
+hardware with `./pad monitor`.
+
+Regenerate goldens (this programs the pad): `./tools/capture-golden.sh`.
+If upstream ever changes the protocol, the selftest fails loudly rather than
+silently writing garbage.
