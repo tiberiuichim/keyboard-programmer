@@ -1,0 +1,43 @@
+# AJIEQ / CH57x 3-key + 1-knob macropad  (USB 514c:8851)
+# Program with:  ch57x-keyboard-tool upload config/media.yaml
+#
+# Physical layout (orientation: normal = keys on the left, knob on the right):
+#
+#     [ key1 ] [ key2 ] [ key3 ]   ( (knob) )
+#
+# There are 3 layers, switched with the small side button on the pad.
+# The LED flashes "1", "2" or "3" when you switch.
+#
+# NOTE (hardware limit of the 3x1+1knob board): modifiers are only honoured
+# on the FIRST key of a sequence. "ctrl-c" is fine, "ctrl-c,alt-v" is not.
+
+model: ch57x-1
+orientation: normal
+rows: 1
+columns: 3
+knobs: 1
+
+layers:
+  # ---- Layer 1: media playback ------------------------------------------
+  - buttons:
+      - ["prev", "play", "next"]
+    knobs:
+      - ccw: volumedown
+        press: mute
+        cw: volumeup
+
+  # ---- Layer 2: browsing / navigation -----------------------------------
+  - buttons:
+      - ["webpageback", "webpageforward", "alt-tab"]
+    knobs:
+      - ccw: left
+        press: enter
+        cw: right
+
+  # ---- Layer 3: system ---------------------------------------------------
+  - buttons:
+      - ["calculator", "screenlock", "mute"]
+    knobs:
+      - ccw: screenbrightnessdown
+        press: play
+        cw: screenbrightnessup

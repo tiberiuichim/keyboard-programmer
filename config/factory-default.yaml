@@ -1,0 +1,35 @@
+# FACTORY DEFAULT mapping — recorded by hand on 2026-11-27 before reprogramming.
+# The device has no config read-back, so this file is the only record of what
+# the pad shipped with. Re-upload this file to restore the stock behaviour.
+#
+# Observed: keys typed a / b / c, knob rotated produced 1 and 3, knob press 2.
+# Assumed:  counter-clockwise = 1, clockwise = 3 (verify if you restore).
+# Unknown:  layers 2 and 3 were never exercised (side button not pressed).
+
+model: ch57x-1
+orientation: normal
+rows: 1
+columns: 3
+knobs: 1
+
+layers:
+  - buttons:
+      - ["a", "b", "c"]
+    knobs:
+      - ccw: "1"
+        press: "2"
+        cw: "3"
+
+  - buttons:
+      - [null, null, null]
+    knobs:
+      - ccw: null
+        press: null
+        cw: null
+
+  - buttons:
+      - [null, null, null]
+    knobs:
+      - ccw: null
+        press: null
+        cw: null

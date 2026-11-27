@@ -1,0 +1,14 @@
+# build artifacts / third-party source checkout — recreated by ./pad build
+build/
+bin/
+
+# local device state: the hardware has no config read-back, so these files are
+# how we remember what is on *this* pad. They are machine-local, not project files.
+config/applied/
+config/.current
+
+# captured USB/HID traces from real sessions
+capture/
+
+__pycache__/
+*.pyc

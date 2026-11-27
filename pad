@@ -1,0 +1,216 @@
+#!/usr/bin/env bash
+#
+# pad — one-command driver for the CH57x 3-key + 1-knob macropad (514c:8851).
+#
+# Runs natively when the user has USB write access, otherwise falls back to a
+# privileged Docker container. See AGENTS.md for the device details.
+set -uo pipefail
+
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+BIN="$HERE/bin/ch57x-keyboard-tool"
+TOOLS="$HERE/tools"
+IMAGE="kbpad"
+VID="514c"
+PID="8851"
+
+usage() {
+    cat <<'EOF'
+pad — program the CH57x 3-key + 1-knob macropad (USB 514c:8851)
+
+  ./pad status                 is the pad plugged in, and can we touch it?
+  ./pad keys                   every key / modifier / media name you may use
+  ./pad validate FILE.yaml     check a mapping file without touching the device
+  ./pad program FILE.yaml      validate + flash + record as the active mapping
+  ./pad restore                re-flash config/factory-default.yaml (stock a/b/c)
+  ./pad monitor [SECS]         decode what the pad is actually sending (default 60)
+  ./pad led LAYER "MODE"       set RGB, e.g. ./pad led 0 "backlight blue"
+  ./pad build                  rebuild the programmer from the pinned commit
+  ./pad udev                   install the udev rule (then no sudo/Docker needed)
+
+Mapping files live in config/. See AGENTS.md for the file format and the
+hardware limitations.
+EOF
+}
+
+# ---------------------------------------------------------------- device probe
+sysfs_dir() {
+    local d
+    for d in /sys/bus/usb/devices/*/; do
+        [[ -f "$d/idVendor" ]] || continue
+        if [[ "$(cat "$d/idVendor" 2>/dev/null)" == "$VID" && \
+              "$(cat "$d/idProduct" 2>/dev/null)" == "$PID" ]]; then
+            printf '%s' "$d"
+            return 0
+        fi
+    done
+    return 1
+}
+
+hidraw_nodes() {
+    local h
+    for h in /sys/class/hidraw/hidraw*; do
+        if grep -qi "$VID" "$h/device/uevent" 2>/dev/null && \
+           grep -qi "$PID" "$h/device/uevent" 2>/dev/null; then
+            printf '/dev/%s\n' "$(basename "$h")"
+        fi
+    done
+}
+
+usb_node() {
+    local d bus dev
+    d="$(sysfs_dir)" || return 1
+    bus="$(cat "$d/busnum")"; dev="$(cat "$d/devnum")"
+    printf '/dev/bus/usb/%03d/%03d\n' "$bus" "$dev"
+}
+
+have_docker() { command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; }
+
+ensure_image() {
+    docker image inspect "$IMAGE" >/dev/null 2>&1 || \
+        docker build -t "$IMAGE" -q -f "$TOOLS/Dockerfile" "$TOOLS" >/dev/null
+}
+
+ensure_bin() {
+    if [[ ! -x "$BIN" ]]; then
+        echo "error: $BIN is missing (it is a build artifact, not committed)." >&2
+        echo "       Run:  ./pad build" >&2
+        return 1
+    fi
+}
+
+# Run the programmer. Native if the USB node is writable, else privileged Docker.
+run_tool() {
+    local node mapped n i
+    ensure_bin || return 1
+    node="$(usb_node)"
+
+    if [[ -n "$node" && -w "$node" ]]; then
+        "$BIN" "$@"
+        return $?
+    fi
+
+    if have_docker; then
+        ensure_image
+        # Absolute file arguments must be re-pointed inside the container.
+        # Each distinct containing directory gets its own mount: /mnt/cfg1, /mnt/cfg2 ...
+        local -a args=(-v /dev/bus/usb:/dev/bus/usb
+                       -v "$BIN:/bin/ch57x-keyboard-tool:ro")
+        mapped=()
+        n=0
+        for i in "$@"; do
+            if [[ "$i" == /* && -f "$i" ]]; then
+                args+=(-v "$(dirname "$i"):/mnt/cfg$((n+1))")
+                n=$((n+1))
+                mapped+=("/mnt/cfg$n/$(basename "$i")")
+            else
+                mapped+=("$i")
+            fi
+        done
+        docker run --rm --privileged "${args[@]}" "$IMAGE" \
+            /bin/ch57x-keyboard-tool "${mapped[@]}"
+        return $?
+    fi
+
+    echo "error: no permission on ${node:-<no device>} and Docker is unavailable." >&2
+    echo "       run './pad udev' (one time) or re-run with sudo." >&2
+    return 1
+}
+
+# Run a python tool from tools/ against the pad's hidraw nodes.
+run_py() {
+    local script="$1"; shift
+    local -a devs=()
+    while IFS= read -r d; do devs+=("$d"); done < <(hidraw_nodes)
+    if [[ ${#devs[@]} -eq 0 ]]; then
+        echo "error: pad's hidraw nodes not found — is it plugged in?" >&2
+        return 1
+    fi
+    local readable=1 d
+    for d in "${devs[@]}"; do [[ -r "$d" ]] || readable=0; done
+
+    if [[ "$readable" -eq 1 ]]; then
+        python3 -u "$TOOLS/$script" "$@"
+    elif have_docker; then
+        ensure_image
+        local -a args=()
+        for d in "${devs[@]}"; do args+=(--device="$d"); done
+        docker run --rm "${args[@]}" -v /sys:/sys:ro -v "$TOOLS:/work:ro" \
+            "$IMAGE" python -u "/work/$script" "$@"
+    else
+        echo "error: cannot read hidraw nodes and Docker is unavailable." >&2
+        return 1
+    fi
+}
+
+# ------------------------------------------------------------------- commands
+cmd_status() {
+    local d node
+    echo "pad — CH57x macropad $VID:$PID"
+    echo
+    if ! d="$(sysfs_dir)"; then
+        echo "DEVICE: NOT PRESENT."
+        echo "        Check the cable — many USB-C cables are charge-only and"
+        echo "        will not enumerate the device at all."
+        return 1
+    fi
+    echo "DEVICE: present at ${d%/}"
+    echo "  bus/dev : $(cat "$d/busnum")/$(cat "$d/devnum")"
+    echo "  speed   : $(cat "$d/speed") Mbit (12 = full speed, normal)"
+    echo "  serial  : $(cat "$d/serial" 2>/dev/null)"
+    node="$(usb_node)"
+    if [[ -w "$node" ]]; then
+        echo "ACCESS  : OK, native ($node writable) — no sudo/Docker needed"
+    elif have_docker; then
+        echo "ACCESS  : restricted; will use privileged Docker"
+        echo "          run './pad udev' once to make this native"
+    else
+        echo "ACCESS  : DENIED ($node not writable) and no Docker — run './pad udev'"
+    fi
+    echo "HIDRAW  : $(hidraw_nodes | tr '\n' ' ')"
+    echo "TOOL    : $("$BIN" --version 2>/dev/null || echo 'MISSING — run ./pad build')"
+}
+
+cmd_validate() {
+    [[ $# -ge 1 ]] || { usage; return 2; }
+    run_tool validate "$(readlink -f "$1")"
+}
+
+cmd_program() {
+    [[ $# -ge 1 ]] || { usage; return 2; }
+    local f
+    f="$(readlink -f "$1")"
+    [[ -f "$f" ]] || { echo "error: no such file: $1" >&2; return 2; }
+
+    run_tool validate "$f" || { echo "refusing to flash an invalid config"; return 1; }
+
+    echo "Flashing $f ..."
+    run_tool upload "$f" || { echo "FLASH FAILED"; return 1; }
+
+    # The hardware has no config read-back, so keep our own record of what is on it.
+    local stamp target
+    stamp="$(date +%Y%m%d-%H%M%S)"
+    mkdir -p "$HERE/config/applied"
+    target="$HERE/config/applied/$stamp-$(basename "$f")"
+    cp "$f" "$target"
+    printf '%s\n' "$target" > "$HERE/config/.current"
+    echo "OK — mapping is live on the device."
+    echo "Recorded as: $target"
+    echo "Verify with: ./pad monitor 30"
+}
+
+cmd_monitor() { run_py monitor_hidraw.py "${1:-60}"; }
+cmd_keys()    { ensure_bin && "$BIN" show-keys; }
+
+case "${1:-}" in
+    status)   cmd_status ;;
+    keys)     cmd_keys ;;
+    validate) shift; cmd_validate "$@" ;;
+    program|flash) shift; cmd_program "$@" ;;
+    restore)  cmd_program "$HERE/config/factory-default.yaml" ;;
+    monitor)  shift; cmd_monitor "$@" ;;
+    led)      shift; run_tool led "$@" ;;
+    build)    "$TOOLS/build-tool.sh" ;;
+    udev)     "$TOOLS/install-udev.sh" ;;
+    ""|help|-h|--help) usage ;;
+    *) echo "unknown command: ${1:-}" >&2; usage; exit 2 ;;
+esac

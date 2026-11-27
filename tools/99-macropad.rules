@@ -1,0 +1,18 @@
+# Grant the logged-in user access to the CH57x macropad so it can be
+# programmed without sudo or Docker.
+#
+# Install with:  ./tools/install-udev.sh
+#
+# TAG+="uaccess" is the modern seat-based mechanism (works on systemd systems).
+# The GROUP/MODE lines are a fallback for systems where uaccess is not enough;
+# they require the user to be in the "plugdev" group.
+
+# The USB device itself (this is what the programmer talks to)
+SUBSYSTEM=="usb", ATTR{idVendor}=="514c", ATTR{idProduct}=="8851", TAG+="uaccess", GROUP="plugdev", MODE="0660"
+
+# The two HID interfaces (needed by the raw-report monitor)
+SUBSYSTEM=="hidraw", ATTRS{idVendor}=="514c", ATTRS{idProduct}=="8851", TAG+="uaccess", GROUP="plugdev", MODE="0660"
+
+# Generic catch-all for the other known CH57x pad IDs, in case you buy another one
+SUBSYSTEM=="usb", ATTR{idVendor}=="1189", ATTR{idProduct}=="88[45]*", TAG+="uaccess", GROUP="plugdev", MODE="0660"
+SUBSYSTEM=="usb", ATTR{idVendor}=="514c", ATTR{idProduct}=="8850", TAG+="uaccess", GROUP="plugdev", MODE="0660"
