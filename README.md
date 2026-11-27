@@ -25,6 +25,17 @@ upstream and is what keeps this repo working if upstream disappears.
 Start with **[AGENTS.md](AGENTS.md)** — device reference, mapping-file format,
 hardware limitations, the raw byte-level protocol, and the workflow to follow.
 
+### Layouts in `config/`
+
+| File | For |
+|---|---|
+| `media.yaml` | desktop media/volume |
+| `android.yaml` | Android 13/14 tablet or car head unit — only bindings Android honours, volume on the knob in every layer |
+| `factory-default.yaml` | the stock `a b c` / `1 2 3` mapping, i.e. the only backup there is |
+
+See AGENTS.md §12 for what works on Android and what silently does nothing
+(`alt-tab`, `screenlock`, `screenbrightness*`).
+
 Run `./pad udev` once (needs sudo) to stop needing sudo/Docker afterwards.
 
 ## Credits

@@ -1,0 +1,50 @@
+# Android layout for the CH57x 3-key + 1-knob macropad (USB 514c:8851)
+#
+# Every binding here is one that Android 13/14 actually honours. Deliberately
+# absent: alt-tab (no window switcher), screenlock, screenbrightness* and
+# webpage* (see AGENTS.md section 12 for the full compatibility table).
+#
+# Design note for a car: the KNOB IS VOLUME ON ALL THREE LAYERS. You never
+# want to have to find a layer button to turn the sound down while driving.
+# The layers change what the three buttons do only.
+#
+# Program on the PC, then just plug the pad into the tablet - the map lives in
+# the pad's flash, Android needs no app, driver or settings.
+
+model: ch57x-1
+orientation: normal
+rows: 1
+columns: 3
+knobs: 1
+
+layers:
+  # ---- Layer 1: media transport -----------------------------------------
+  # Consumer usages 0x0b6 / 0x0cd / 0x0b5 -> KEYCODE_MEDIA_PREVIOUS /
+  # KEYCODE_MEDIA_PLAY_PAUSE / KEYCODE_MEDIA_NEXT. Handled by the Android
+  # framework, so they work in any media app, including while the screen is
+  # off, without the app opting in.
+  - buttons:
+      - ["prev", "play", "next"]
+    knobs:
+      - ccw: volumedown
+        press: mute
+        cw: volumeup
+
+  # ---- Layer 2: navigation ------------------------------------------------
+  # escape -> Android treats it as BACK, which is by far the most useful
+  # single key on a HID keyboard. enter selects, tab moves focus.
+  - buttons:
+      - ["escape", "enter", "tab"]
+    knobs:
+      - ccw: volumedown
+        press: mute
+        cw: volumeup
+
+  # ---- Layer 3: typing / misc ---------------------------------------------
+  # Useful when the tablet has a text field focused (maps, address entry).
+  - buttons:
+      - ["backspace", "space", "calculator"]
+    knobs:
+      - ccw: volumedown
+        press: mute
+        cw: volumeup

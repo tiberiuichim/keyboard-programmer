@@ -425,3 +425,66 @@ hardware with `./pad monitor`.
 Regenerate goldens (this programs the pad): `./tools/capture-golden.sh`.
 If upstream ever changes the protocol, the selftest fails loudly rather than
 silently writing garbage.
+
+---
+
+## 12. Android / car head units
+
+The pad stores its map in its own flash, so **Android needs no app, driver or
+settings** — program it on a PC, plug it into the tablet, done. Layer switching
+is the hardware side button.
+
+`config/android.yaml` is a layout built from only the bindings Android honours.
+
+### What the pad looks like to Android
+
+Interface 1 advertises four collections: `1` 6-key keyboard, `2` mouse,
+`4` 9-key NKRO, `5` 16-bit Consumer page. Interface 0 (vendor usage page
+`0xFF00`) is simply ignored. All four are standard, and Android binds them.
+
+### Binding compatibility
+
+| Binding | Android | Notes |
+|---|---|---|
+| `prev` `play` `next` | ✅ | Consumer `0x0b6/0x0cd/0x0b5` → `KEYCODE_MEDIA_PREVIOUS/PLAY_PAUSE/NEXT`. Framework-level: works in any media app, even with the screen off. |
+| `volumeup` `volumedown` | ✅ | `0x0e9/0x0ea` → `KEYCODE_VOLUME_UP/DOWN`, consumed by the framework before any app sees it. |
+| `mute` | ⚠️ usually | `0x0e2` → `KEYCODE_VOLUME_MUTE`. Mapped on most builds, not all. |
+| `calculator` | ✅ | `KEYCODE_CALCULATOR`, Android 4.4+. |
+| `escape` | ✅ | Android treats ESC as **BACK** — the single most useful key here. |
+| `enter` `tab` `space` `backspace`, letters, digits, arrows | ✅ | standard HID keyboard. |
+| `ctrl-x` style combos | ✅ | |
+| `click` `wheel` `move` (mouse macros) | ✅ | but Android draws an on-screen pointer. |
+| `webpageback` `webpageforward` | ⚠️ | only honoured inside a browser/WebView. |
+| **`alt-tab`** | ❌ | no window-switcher shortcut exists. |
+| `screenlock` | ❌ | no user-space keycode; screen off needs a device-admin app. |
+| `screenbrightnessup/down` | ❌ | Android routes brightness through the system and ignores the HID usages. |
+
+### Android 13 and 14 specifically
+
+Android ≤12 reads HID through the kernel input layer (evdev) — mature, and
+consumer keys are reliably mapped. **Android 13+ may use the "HID raw" path**,
+where the framework parses the reports itself; consumer-control handling there
+is less battle-tested. So if media keys are dead on a 13/14 tablet, suspect the
+host's HID path, not the pad — the same pad on a Linux box will look perfect.
+
+### Other gotchas
+
+* **Power.** The descriptor claims 400 mA. Tablets often cap VBUS on OTG.
+  Flaky or repeated reconnects → powered hub or a Y-cable.
+* **Composite devices.** A few builds bind only the first HID interface.
+  Symptom: a mouse cursor appears but no keys work.
+* **OTG enable.** Some tablets need host mode switched on manually.
+* **The mouse collection exists whether you use it or not** — the pad always
+  advertises it, which is why some builds park a pointer on screen.
+
+### Verifying on the tablet (no guessing)
+
+```
+adb shell dumpsys input                       # is the pad enumerated at all?
+adb shell getevent -li                        # list devices and their keymaps
+adb shell getevent -l                         # then press a key: shows the keycode
+```
+
+If `getevent` shows `KEY_PLAYPAUSE` / `KEY_VOLUMEDOWN` but the app ignores it,
+the pad is fine and the app is the problem. If `getevent` shows nothing, it is
+the HID path or power.
